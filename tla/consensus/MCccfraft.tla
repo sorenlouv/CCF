@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, StatsFile
+EXTENDS ccfraft, StatsFile, IOUtils, TLC
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
@@ -133,6 +133,35 @@ AllReconfigurationsCommitted ==
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
-
-
+SomeAlias ==
+    \* For TLCGet("action") to have non-dummy values, TLC has to be in simluation mode,
+    \* running in the debugger, or be running with -Dtlc2.tool.impl.Tool.TLCStateMutExt=true
+    [
+        \* Serializes the current action (name, location, context) to a JSON file whose name
+        \* is MCccfraft_XXX.json, where XXX is the current state ordinal.  Raft tests probably
+        \* don't need this, but I thought it might be useful for debugging.
+        pipe |-> 
+            LET out == IOExecTemplate(
+                            <<"bash", "-c", "echo -n MCccfraft_$(printf %%03d %1$s).json">>,
+                            <<ToString(TLCGet("level"))>>).stdout 
+            IN JsonSerialize(out, TLCGet("action"))
+        \* Causes TLC to block on *its* stdin until the user presses enter.
+        \* ,pause |-> TLCSet("pause", TRUE)
+    ]
+    @@
+    [
+        \* Put a breakpoint on this line to halt TLC after each MCccfraft_XXX.json file is written.
+        state |-> state,
+        action |-> TLCGet("action").name
+    ]
+    @@ 
+        (IF "context" \in DOMAIN TLCGet("action") 
+         THEN [ params |-> TLCGet("action").context ]
+         ELSE [ n \in {} |-> TRUE ]) \* Empty function.
+    @@
+    [
+        \* Bi-directional blocking: Create some fifo file with mkfifo somefile.
+        \* Raft tests could then write to somefile to unblock TLC from this pause.
+        pause |-> IOExec(<<"cat", "somefile">>)
+    ]
 ===================================
