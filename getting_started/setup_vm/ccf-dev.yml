@@ -19,7 +19,7 @@
     - import_role:
         name: az_dcap
         tasks_from: install.yml
-      when: require_open_enclave
+      when: platform != "sgx" and require_open_enclave | bool
     - import_role:
         name: openenclave
         tasks_from: binary_install.yml
@@ -27,7 +27,7 @@
     - import_role:
         name: openenclave
         tasks_from: install_host_verify.yml
-      when: platform != "sgx" and require_open_enclave
+      when: platform != "sgx" and require_open_enclave | bool
     - import_role:
         name: nodejs
         tasks_from: install.yml
